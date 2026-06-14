@@ -1,0 +1,7 @@
+BEDROCK_HAIKU = 'anthropic.claude-3-haiku-20240307-v1:0'
+BEDROCK_SONNET_35 = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+BEDROCK_AWS_REGION = 'us-east-1'
+BEDROCK_PREFILL = ["```{"]
+BEDROCK_STOP_SEQUENCE = ["```"]
+
+MAX_REFLECTION_ITERATIONS = 2
