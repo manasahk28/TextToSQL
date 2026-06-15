@@ -164,12 +164,17 @@ def get_tag_from_completion(tag, completion):
     # The LLM prompt requests the thinking and SQL to be output between <tags>
     # this method uses regex to extract the <tag>> output from the completion
 
+    if not completion or not isinstance(completion, str):
+        return ""
+
     # regex to extract required strings
     reg_str = "<" + tag + ">(.*?)</" + tag + ">"
     tag_string = re.findall(reg_str, completion)
 
     if len(tag_string) > 0:
         tag_string = tag_string[0]
+    else:
+        tag_string = ""
 
     return tag_string
 

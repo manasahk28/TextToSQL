@@ -34,6 +34,10 @@ def run(example_case):
         print("----Invoke LLM to review and remedy------------")
         llm_response = reflection_tasks.llm_inference(reflection_prompt)
 
+        if not llm_response:
+            print("Failed to get a response from the LLM. Exiting iteration loop.")
+            break
+
         # print thinking
         thinking = reflection_tasks.get_thinking_from_completion(llm_response)
         print(f"<thinking> tag in LLM's response:\n{thinking.strip()}")
