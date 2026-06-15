@@ -29,70 +29,34 @@ Do not output any further explanations or prose.
 
 
 def validation(reflection_state):
-    # For this illustrative implementation, we provide a dummy stub for 
-    # performing the vaidation of generated output. Please note the following 
-    # to write a validation function for your application.
-    # 
-    # The output of the LLM needs to be validated before being returned to the 
-    # client application. The specific logic for validation will vary by 
-    # implementation and objectives. For the purpose of explanation, we note 
-    # the following typical examples. Depending of the validation functions 
-    # being applied, the output from earlier steps is also available as input 
-    # to the Validate step.
-    # 
-    # 1. It is common that the LLM has multiple output values, as noted above, 
-    # and that these outputs are wrapped in a JSON document or XML style tags. 
-    # Minimally, the validation step will check that the LLM output is 
-    # formatted correctly.
-    # 
-    # 2. It is also common that the prompt that drives the LLM will include an 
-    # option for the LLM to not produce SQL output, for instances such as when 
-    # a client request may be inappropriate for the configuration. This will be 
-    # checked.
-    # 
-    # 3. Check if the generated SQL is syntactically valid.
-    # 
-    # 4. Check if the the generated SQL is valid for the application data 
-    # structures  (e.g. the tables and views).
-    # 
-    # With Agentic Reflection, there is often value in extending the validation
-    # process further, to include checks for queries that tend to produce 
-    # incorrect outputs during the First Pass, and/or for SQL statements 
-    # associated with incorrect outputs. By flagging queries and outputs that 
-    # have proved problematic during testing and/or in Production, the Agentic 
-    # Reflection process can pick up results from the First Pass and improve 
-    # the generative output.
+    # check reflection state for sql
+    generated_sql = get_sql_from_genoutput(reflection_state)
 
-    # Dummy placeholder validation function: just return failure for the first
-    # iteration, and does simple syntax check for the subsequent.
-    if reflection_state['iteration'] < 1:
+    if not generated_sql:
         result = {
             'validation': False,
-            'validation_analysis': "the sql generated for this user query was incorrect.",
+            'validation_analysis': "No SQL query was generated.",
+        }
+        return result
 
+    # Check if there is a custom database path and schema prompts in state
+    db_path = reflection_state.get('db_path', ':memory:')
+    schema_prompts = reflection_state.get('schema_prompts', None)
+
+    # check if the generated sql is syntactically/schema valid
+    test_db = rdbms_facade.RdbmsFacade(db_path)
+    is_valid, error_msg = test_db.validate_sql(generated_sql, schema_prompts=schema_prompts)
+
+    if not is_valid:
+        result = {
+            'validation': False,
+            'validation_analysis': f"The generated SQL is invalid. Database error: {error_msg}",
         }
     else:
-        # check reflection state for sql
-        generated_sql = get_sql_from_genoutput(reflection_state)
-
-        if not generated_sql:
-            result = {
-                'validation': False,
-                'validation_analysis': "no sql was generates",
-            }
-        else:
-            # check if the generated sql is syntactically valid
-            test_db = rdbms_facade.RdbmsFacade(":memory:")
-            if not test_db.validate_sql(generated_sql):
-                result = {
-                    'validation': False,
-                    'validation_analysis': "the generated sql was not syntactically valid.",
-                }
-                return result
-            result = {
-                'validation': True,
-                'validation_analysis': "the generated sql passed validation checks.",
-            }
+        result = {
+            'validation': True,
+            'validation_analysis': "The generated SQL passed validation checks.",
+        }
     return result
 
 
@@ -102,12 +66,15 @@ def generate_reflection_prompt(reflection_state):
     user_query = get_user_query_from_genoutput(reflection_state)
     generated_sql = get_sql_from_genoutput(reflection_state)
 
-    # if there are any specific rules for the tables being used, get those rules
-    tables_rules = dbtables_rules.get_all_rules_for_tables()
-
-    # AV question - what if the first pass did not use the correct tables?
-    # get the schema of the tables used in first pass
-    tables_schema = dbtables_schemas.get_schema_prompt_for_all_tables()
+    schema_prompts = reflection_state.get('schema_prompts', None)
+    if schema_prompts is None:
+        # if there are any specific rules for the tables being used, get those rules
+        tables_rules = dbtables_rules.get_all_rules_for_tables()
+        tables_schema = dbtables_schemas.get_schema_prompt_for_all_tables()
+    else:
+        # Custom DB uploaded: bypass rules and use the custom DB schema
+        tables_rules = []
+        tables_schema = schema_prompts
 
     # Merge together the prompt elements to have a single prompt to pass to the LLM for reflection
     reflection_prompt = reflection_system_prompt + \
