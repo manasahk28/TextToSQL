@@ -367,12 +367,30 @@ def render_plotly_visualization(df):
             st.plotly_chart(fig, use_container_width=True)
 
 
+# Initialize session state for execution trace
+if "result_trace" not in st.session_state:
+    st.session_state.result_trace = None
+
+# Detect any changes to current configuration inputs
+current_config = {
+    "query": user_query,
+    "db_active": custom_db_active,
+    "preset_idx": selected_preset_idx if 'selected_preset_idx' in locals() else None,
+    "model": model,
+    "provider": provider
+}
+
+if st.session_state.result_trace is not None:
+    # If the inputs change, clear the cached query results
+    if st.session_state.result_trace.get("config") != current_config:
+        st.session_state.result_trace = None
+
 # Run Button
 if st.button("🚀 Execute Text-to-SQL Agent", use_container_width=True):
     if not user_query:
         st.warning("Please enter a question or select a preset case.")
     else:
-        # Create execution state
+        # Generate the execution trace
         if not custom_db_active and use_preset and selected_preset_idx is not None:
             # Load the preset with its pre-configured first-pass SQL (often containing syntax/schema errors)
             reflection_state = example_cases.get_example_case(selected_preset_idx).copy()
@@ -393,44 +411,44 @@ if st.button("🚀 Execute Text-to-SQL Agent", use_container_width=True):
         reflection_tasks.set_iteration_in_genoutput(reflection_state, 0)
         reflection_tasks.set_source_in_genoutput(reflection_state, 'First-pass')
 
-        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        st.subheader("⛓️ Agent Execution and Chain-of-Thought Trace")
-
         iteration = 0
         success = False
         final_sql = ""
+        steps = []
+        df = None
 
         # Self-correction loop
-        while True:
-            current_sql = reflection_state.get('sql', '').strip()
+        with st.spinner("Agent is running self-correction loop..."):
+            while True:
+                current_sql = reflection_state.get('sql', '').strip()
 
-            # 1. Run Validation (against SQLite Facade)
-            validation_result = reflection_tasks.validation(reflection_state)
-            is_valid = validation_result['validation']
-            validation_msg = validation_result['validation_analysis']
+                # 1. Run Validation (against SQLite Facade)
+                validation_result = reflection_tasks.validation(reflection_state)
+                is_valid = validation_result['validation']
+                validation_msg = validation_result['validation_analysis']
 
-            # Display Attempt Box
-            with st.container():
-                st.markdown(f"#### 🤖 Attempt {iteration + 1}")
-                st.markdown("**Generated SQL:**")
-                st.code(current_sql, language="sql")
+                step_data = {
+                    "attempt": iteration + 1,
+                    "sql": current_sql,
+                    "is_valid": is_valid,
+                    "validation_msg": validation_msg if not is_valid else None,
+                    "thinking": None,
+                    "next_sql": None
+                }
 
-                if not is_valid:
-                    st.error(f"❌ **Database Validation Failed**\n\n`{validation_msg}`")
-                else:
-                    st.success(f"✅ **Database Validation Succeeded**")
+                if is_valid:
                     success = True
                     final_sql = current_sql
+                    steps.append(step_data)
+                    break
 
-            # Check exit conditions
-            if is_valid or iteration >= app_constants.MAX_REFLECTION_ITERATIONS:
-                break
+                if iteration >= app_constants.MAX_REFLECTION_ITERATIONS:
+                    steps.append(step_data)
+                    break
 
-            # 2. Reflect and Remedy
-            iteration += 1
-            st.info(f"🧠 **Triggering Self-Reflection (Iteration {iteration})**")
-
-            with st.spinner("Agent is reflecting on the error and generating correction..."):
+                # 2. Reflect and Remedy
+                iteration += 1
+                
                 # Prepare reflection prompt (which contains the validation_msg error)
                 reflection_prompt = reflection_tasks.generate_reflection_prompt(reflection_state)
 
@@ -438,52 +456,88 @@ if st.button("🚀 Execute Text-to-SQL Agent", use_container_width=True):
                 llm_response = apply_llm.get_llm_response(reflection_prompt)
 
                 if not llm_response:
-                    st.error("Error: Failed to receive response from the LLM. Exiting execution loop.")
+                    step_data["validation_msg"] = "Error: Failed to receive response from the LLM."
+                    steps.append(step_data)
                     break
 
                 # Extract thoughts and SQL
                 thinking = reflection_tasks.get_thinking_from_completion(llm_response)
                 next_sql = reflection_tasks.get_sql_from_completion(llm_response)
 
-                # Display Agent's thoughts
-                with st.expander(f"💭 Attempt {iteration} ── Agent Reflection & Correction Plan", expanded=True):
-                    st.markdown(f"**Agent's Reasoning:**")
-                    st.write(thinking if thinking else "No reasoning output.")
-                    if next_sql:
-                        st.markdown(f"**Remedied SQL for Next Attempt:**")
-                        st.code(next_sql, language="sql")
+                step_data["thinking"] = thinking
+                step_data["next_sql"] = next_sql
+                steps.append(step_data)
 
                 # Update reflection state for next loop
                 reflection_tasks.set_sql_in_genoutput(reflection_state, next_sql)
                 reflection_tasks.set_iteration_in_genoutput(reflection_state, iteration)
                 reflection_tasks.set_source_in_genoutput(reflection_state, 'Reflection')
 
-        # After loop concludes:
-        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-
+        # After loop concludes, fetch data if successful
         if success:
-            st.success("🎉 **Success! Correct SQL Query Secured.**")
+            try:
+                df = rdbms_facade.get_dataframe_from_sql(final_sql, db_path=db_path)
+            except Exception as e:
+                success = False
+                steps[-1]["is_valid"] = False
+                steps[-1]["validation_msg"] = f"Error executing final query: {e}"
 
-            # Display Final SQL
-            st.subheader("📄 Final Executable SQL")
-            st.code(final_sql, language="sql")
+        # Store results in session state
+        st.session_state.result_trace = {
+            "steps": steps,
+            "success": success,
+            "final_sql": final_sql,
+            "df": df,
+            "is_select": rdbms_facade.is_select_query(final_sql) if (success and final_sql) else False,
+            "config": current_config
+        }
+        st.rerun()
 
-            # 3. Fetch Data & Display
-            with st.spinner("Executing query and retrieving records..."):
-                try:
-                    df = rdbms_facade.get_dataframe_from_sql(final_sql, db_path=db_path)
+# Rendering Block
+if st.session_state.result_trace is not None:
+    trace = st.session_state.result_trace
 
-                    st.subheader("📊 Query Results")
-                    if df.empty:
-                        st.info("The query executed successfully but returned 0 rows.")
-                    else:
-                        st.dataframe(df, use_container_width=True)
+    st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+    st.subheader("⛓️ Agent Execution and Chain-of-Thought Trace")
 
-                        # Only render Plotly Visualizations for SELECT queries
-                        if rdbms_facade.is_select_query(final_sql):
-                            st.subheader("📈 Custom Data Analytics")
-                            render_plotly_visualization(df)
-                except Exception as e:
-                    st.error(f"Error fetching data: {e}")
+    for step in trace["steps"]:
+        st.markdown(f"#### 🤖 Attempt {step['attempt']}")
+        st.markdown("**Generated SQL:**")
+        st.code(step["sql"], language="sql")
+
+        if not step["is_valid"]:
+            st.error(f"❌ **Database Validation Failed**\n\n`{step['validation_msg']}`")
+            if step["thinking"]:
+                with st.expander(f"💭 Attempt {step['attempt']} ── Agent Reflection & Correction Plan", expanded=True):
+                    st.markdown("**Agent's Reasoning:**")
+                    st.write(step["thinking"])
+                    if step["next_sql"]:
+                        st.markdown("**Remedied SQL for Next Attempt:**")
+                        st.code(step["next_sql"], language="sql")
         else:
-            st.error("❌ **Agent failed to resolve the database issue within the reflection limit.**")
+            st.success("✅ **Database Validation Succeeded**")
+
+    # After loop concludes:
+    st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+
+    if trace["success"]:
+        st.success("🎉 **Success! Correct SQL Query Secured.**")
+
+        # Display Final SQL
+        st.subheader("📄 Final Executable SQL")
+        st.code(trace["final_sql"], language="sql")
+
+        # 3. Fetch Data & Display
+        st.subheader("📊 Query Results")
+        df = trace["df"]
+        if df is None or df.empty:
+            st.info("The query executed successfully but returned 0 rows.")
+        else:
+            st.dataframe(df, use_container_width=True)
+
+            # Only render Plotly Visualizations for SELECT queries
+            if trace["is_select"]:
+                st.subheader("📈 Custom Data Analytics")
+                render_plotly_visualization(df)
+    else:
+        st.error("❌ **Agent failed to resolve the database issue within the reflection limit.**")
