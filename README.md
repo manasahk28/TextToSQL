@@ -1,14 +1,3 @@
----
-title: TextToSQL Agent Dashboard
-emoji: 🤖
-colorFrom: indigo
-colorTo: cyan
-sdk: streamlit
-sdk_version: 1.40.0
-app_file: src/ui/app.py
-pinned: false
----
-
 # 🤖 Text-to-SQL Agent Dashboard
 
 An interactive, premium dashboard demonstrating a state-of-the-art **Text-to-SQL Agent** equipped with real-time **Chain-of-Thought (CoT) self-correction**, live database validation, and interactive data analytics.
