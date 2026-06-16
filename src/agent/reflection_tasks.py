@@ -1,9 +1,9 @@
 import re
 
-import apply_llm
-import dbtables_schemas
-import dbtables_rules
-import rdbms_facade
+from src.agent import apply_llm
+from src.database import dbtables_schemas
+from src.database import dbtables_rules
+from src.database import rdbms_facade
 
 # Functions for reflection related tasks:
 # o  validation - to validate the generated SQL

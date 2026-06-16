@@ -3,7 +3,7 @@ import boto3
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 
-import app_constants as app_consts
+from src import app_constants as app_consts
 
 # Load environment variables from .env
 load_dotenv()

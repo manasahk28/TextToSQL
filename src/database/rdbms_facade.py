@@ -1,6 +1,6 @@
 import sqlite3
-from example_cases import get_example_case
-from dbtables_schemas import get_schema_prompt_for_all_tables
+from tests.example_cases import get_example_case
+from src.database.dbtables_schemas import get_schema_prompt_for_all_tables
 
 
 # The class RdbmsFacade wraps one or more SQL Database Engines to provide a consistent interface

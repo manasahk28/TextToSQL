@@ -1,6 +1,6 @@
-import reflection_tasks
-import example_cases
-import app_constants
+from src.agent import reflection_tasks
+from tests import example_cases
+from src import app_constants
 import json
 
 

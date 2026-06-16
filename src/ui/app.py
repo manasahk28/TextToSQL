@@ -8,17 +8,18 @@ import re
 import os
 
 import importlib
-import reflection_tasks
+from src.agent import reflection_tasks
+from tests import example_cases
+from src import app_constants
+from src.database import rdbms_facade
+from src.database import dbtables_schemas
+from src.agent import apply_llm
+
 importlib.reload(reflection_tasks)
-import example_cases
 importlib.reload(example_cases)
-import app_constants
 importlib.reload(app_constants)
-import rdbms_facade
 importlib.reload(rdbms_facade)
-import dbtables_schemas
 importlib.reload(dbtables_schemas)
-import apply_llm
 importlib.reload(apply_llm)
 
 

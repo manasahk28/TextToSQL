@@ -18,13 +18,18 @@ The application translates natural language questions into valid SQL, runs them 
 
 ## 📁 Project Structure
 
-- **[app.py](file:///d:/Projects/TextToSQL/app.py)**: The main Streamlit dashboard interface containing layout configuration, session-state management, visualizer rendering, and the agent evaluation controller.
-- **[main.py](file:///d:/Projects/TextToSQL/main.py)**: Command-line runner to execute preset query test cases sequentially and print detailed CoT self-reflection traces.
-- **[rdbms_facade.py](file:///d:/Projects/TextToSQL/rdbms_facade.py)**: Wraps SQLite to mock a PostgreSQL database structure, manage schemas, validate queries, and populate mock data (access policies, rules, intrusion logs, VPN entries).
-- **[reflection_tasks.py](file:///d:/Projects/TextToSQL/reflection_tasks.py)**: Manages prompt engineering, LLM inference invocations, and parses thoughts/SQL outputs from models.
-- **[apply_llm.py](file:///d:/Projects/TextToSQL/apply_llm.py)**: Integration layer connecting application requests to Groq and AWS Bedrock runtime client APIs.
-- **[dbtables_schemas.py](file:///d:/Projects/TextToSQL/dbtables_schemas.py)** & **[dbtables_rules.py](file:///d:/Projects/TextToSQL/dbtables_rules.py)**: Contains standard database table DDLs and custom PostgreSQL rules utilized during prompt generation.
-- **[example_cases.py](file:///d:/Projects/TextToSQL/example_cases.py)**: Preset network security questions and faulty SQL statements used for agent validation.
+- **`run_dashboard.py`**: Entrypoint to launch the Streamlit dashboard.
+- **`run_tests.py`**: Entrypoint to launch the CLI evaluation test suite.
+- **`src/`**: Primary source files directory.
+  - **`src/ui/app.py`**: Streamlit dashboard code (layout, visualizations, controller).
+  - **`src/agent/reflection_tasks.py`**: Agent prompt generation and correction algorithms.
+  - **`src/agent/apply_llm.py`**: API interfaces for Groq and Bedrock models.
+  - **`src/database/rdbms_facade.py`**: Relational database facade managing validations and mock data.
+  - **`src/database/dbtables_schemas.py`** & **`dbtables_rules.py`**: Schemas DDL statements and PostgreSQL database rules.
+  - **`src/app_constants.py`**: Global configs and limits configuration.
+- **`tests/`**: Contains testing data and runners.
+  - **`tests/main.py`**: Core logic for running the CLI evaluations.
+  - **`tests/example_cases.py`**: Pre-configured query evaluation cases.
 
 ---
 
@@ -59,12 +64,12 @@ GROQ_API_KEY=your_groq_api_key_here
 ### Launch the Interactive Dashboard
 Start the Streamlit application to open the dashboard interface in your default browser:
 ```bash
-streamlit run app.py
+python run_dashboard.py
 ```
 *(By default, it serves on [http://localhost:8501](http://localhost:8501))*
 
 ### Run Evaluation Test Cases (CLI)
 To execute the reflection loop against preset test cases via terminal:
 ```bash
-python main.py
+python run_tests.py
 ```
