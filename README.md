@@ -62,14 +62,21 @@ GROQ_API_KEY=your_groq_api_key_here
 ## 🚀 Running the Application
 
 ### Launch the Interactive Dashboard
-Start the Streamlit application to open the dashboard interface in your default browser:
-```bash
-python run_dashboard.py
-```
-*(By default, it serves on [http://localhost:8501](http://localhost:8501))*
+You can run the interactive Streamlit dashboard in either of two ways:
+
+1. **Option A: Run the wrapper script (Recommended)**
+   ```bash
+   python run_dashboard.py
+   ```
+2. **Option B: Run Streamlit directly**
+   ```bash
+   streamlit run src/ui/app.py
+   ```
+
+*(By default, the dashboard serves on [http://localhost:8501](http://localhost:8501))*
 
 ### Run Evaluation Test Cases (CLI)
-To execute the reflection loop against preset test cases via terminal:
+To run the evaluation test suite via terminal:
 ```bash
 python run_tests.py
 ```
